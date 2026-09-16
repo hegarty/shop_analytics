@@ -16,6 +16,23 @@ import (
 // published.
 const AnalyticsResultsTopic = "analytics.results"
 
+// NotificationRequestsTopic decouples "an analytics result exists" from
+// "someone should be notified about it" — shop_notifier consumes this, not
+// analytics.results directly, so it never needs to understand what a
+// sales.channel.breakdown result means. See shop_docs/docs/architecture.md.
+const NotificationRequestsTopic = "notifications.requested"
+
+// NotificationRequest is published alongside (not instead of)
+// analytics.results. Kind lets shop_notifier pick a formatter without
+// needing to know about every job this repo has; Payload is that job's
+// job.Result, JSON-encoded.
+type NotificationRequest struct {
+	TenantID string `json:"tenant_id"`
+	Kind     string `json:"kind"` // "analytics_result"
+	Job      string `json:"job"`
+	Payload  any    `json:"payload"`
+}
+
 // ResultStore records job lifecycle + persists results.
 type ResultStore interface {
 	StartJob(ctx context.Context, tenantID, jobName string, periodStart, periodEnd time.Time) (int64, error)
@@ -71,6 +88,16 @@ func (w *Worker) HandleRequest(ctx context.Context, req job.Request) error {
 
 	if err := w.Notifier.Publish(ctx, AnalyticsResultsTopic, req.TenantID, req.Job, result); err != nil {
 		return fmt.Errorf("worker: publish result: %w", err)
+	}
+
+	notification := NotificationRequest{
+		TenantID: req.TenantID,
+		Kind:     "analytics_result",
+		Job:      req.Job,
+		Payload:  result,
+	}
+	if err := w.Notifier.Publish(ctx, NotificationRequestsTopic, req.TenantID, req.Job, notification); err != nil {
+		return fmt.Errorf("worker: publish notification request: %w", err)
 	}
 	return nil
 }

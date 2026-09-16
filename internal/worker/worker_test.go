@@ -71,8 +71,8 @@ func TestHandleRequest_Success(t *testing.T) {
 	if !store.started || !store.completed {
 		t.Errorf("expected StartJob and CompleteJob to be called, got started=%v completed=%v", store.started, store.completed)
 	}
-	if pub.published != 1 {
-		t.Errorf("expected 1 publish, got %d", pub.published)
+	if pub.published != 2 {
+		t.Errorf("expected 2 publishes (analytics.results + notifications.requested), got %d", pub.published)
 	}
 }
 
