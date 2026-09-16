@@ -14,6 +14,7 @@ import (
 	"github.com/hegarty/shop_platform/config"
 	"github.com/hegarty/shop_platform/db"
 	"github.com/hegarty/shop_platform/logging"
+	"github.com/hegarty/shop_platform/otelx"
 	"github.com/hegarty/shop_platform/redpanda"
 
 	"github.com/hegarty/shop_analytics/internal/scheduler"
@@ -32,6 +33,7 @@ func main() {
 	dbPassword := l.String("DATABASE_PASSWORD")
 	redpandaBrokers := l.String("REDPANDA_BROKERS")
 	tickInterval := l.IntDefault("SCHEDULER_TICK_SECONDS", 60)
+	otelEndpoint := l.StringDefault("OTEL_EXPORTER_OTLP_ENDPOINT", "")
 	if err := l.Err(); err != nil {
 		logger.Error("configuration error", slog.Any("error", err))
 		os.Exit(1)
@@ -39,6 +41,22 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	if otelEndpoint != "" {
+		shutdown, err := otelx.Bootstrap(ctx, otelx.Config{
+			ServiceName: "shop-scheduler", ServiceVersion: "dev",
+			Endpoint: otelEndpoint, Insecure: true,
+		})
+		if err != nil {
+			logger.Error("otel bootstrap failed", slog.Any("error", err))
+			os.Exit(1)
+		}
+		defer func() {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = shutdown(shutdownCtx)
+		}()
+	}
 
 	pool, err := db.Connect(ctx, db.Config{Host: dbHost, Port: dbPort, Database: dbName, User: dbUser}, dbPassword)
 	if err != nil {
