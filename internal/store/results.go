@@ -47,7 +47,7 @@ func (s *ResultStore) CompleteJob(ctx context.Context, jobID int64, tenantID, jo
 	if err != nil {
 		return fmt.Errorf("store: begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	if _, err := tx.Exec(ctx, `
 		UPDATE analytics_jobs SET status = 'completed', completed_at = now() WHERE id = $1
