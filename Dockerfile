@@ -2,7 +2,7 @@
 # see shop_ingestor's Dockerfile for why one image, selected by command at
 # deploy time, rather than three near-identical images.
 
-FROM golang:1.24.13-bookworm AS build
+FROM golang:1.25.14-bookworm AS build
 WORKDIR /src
 
 COPY go.mod go.sum ./
